@@ -1,0 +1,301 @@
+---
+title: "Appendix"
+output: pdf_document
+---
+
+#Part1
+
+##Loading dataset into dataframe
+```{r}
+library(readxl)
+data <- read_excel(path = "/Users/sainivasrangaraju/Desktop/MMData.xlsx")
+```
+
+##New data frame with t and ln_y values
+```{r}
+lny_full_data <- data.frame(t = data$t,ln_y = log(data$y))
+head(lny_full_data)
+
+#Uncomment and run the below command to view completed data in lny_full_data
+#lny_full_data
+```
+
+##Time selected for exponential peeling(t>4)
+```{r}
+time_selected <- which(data$t>4)
+```
+
+##Fitting a linear model
+```{r}
+lin1_model <- lm(ln_y~., lny_full_data, subset = time_selected)
+lin1_model
+```
+
+##Extracting coefficients of the model and thus obtaining c1 and l1(lambda1)
+```{r}
+c1 <- exp(lin1_model$coefficients[1])
+c1
+
+l1 <- lin1_model$coefficients[2]
+l1
+```
+##Finding y-c1*e^(-l1*t), the residual
+```{r}
+y_new <- data$y-c1*exp(l1*data$t)
+head(y_new)
+
+#Uncomment and run the below command to view completed data in y_new
+#y_new
+```
+
+##Creating new dataframe with the log(residual_y)
+```{r}
+final_data <- data.frame(t = data$t,ln_y_res = log(y_new))
+head(final_data)
+```
+
+##Fitting linear model to the residual log values
+```{r}
+lin2_model <- lm(ln_y_res~., final_data, subset = -time_selected)
+lin2_model
+```
+
+##Extracting coefficients of the model and thus obtaining c2 and l2(lambda2)
+```{r}
+c2 <- exp(lin2_model$coefficients[1])
+c2
+
+l2 <- lin2_model$coefficients[2]
+l2
+```
+
+##Creating new dataframe with final estimated values of y wrt t
+```{r}
+estimated_dataframe <- data.frame(y = c1*exp(l1*data$t)+c2*exp(l2*data$t),
+                                  t = data$t)
+head(estimated_dataframe)
+
+#Uncomment and run the below command to view the  data in estimated_dataframe
+#estimated_dataframe
+```
+
+##Graph for estimated vs actual y values
+```{r}
+library(ggplot2)
+ggplot()+
+  geom_point(data = data,aes(t,y, shape = "Actual y"))+
+  geom_point(data = estimated_dataframe, aes(t,y, shape = "Estimated y"))+
+  geom_line(data = estimated_dataframe, aes(t,y))+
+  ggtitle("Estimated y vs Actual y")+
+  labs(shape = "Legend Title")+
+  scale_shape_manual(values = c("Actual y" = 17, "Estimated y" = 20))
+```
+
+##Sum of Squared Errors for the estimated vs actual
+```{r}
+SR <- (estimated_dataframe$y-data$y)^2
+SSR <- sum(SR)
+cat("Sum of Squared Errors for the estimated vs actual is ",SSR)
+```
+
+##Using Optimization function optim() to find the c1, l1, c2 and l2
+```{r}
+objective_function <- function(x) {
+  SE = (data$y-x[1]*exp(x[2]*data$t)-x[3]*exp(x[4]*data$t))^2
+  SSE = sum(SE)
+  return(SSE)
+}
+
+# Initial guess
+initial_guess <- c(0,0,0,0)
+
+# Call optim
+result <- optim(par = initial_guess, fn = objective_function, method = "BFGS")
+
+# Display results
+cat("\nMinimum found at:")
+cat("\n\tc1 =", result$par[1], "\n\tl1 =", result$par[2],
+    "\n\tc2 =", result$par[3], "\n\tl2 =", result$par[4])
+cat("\nThe minimum SSE obtained is =", result$value, "\n")
+```
+##Creating dataframe for y values estimated by optimized paramaters
+```{r}
+optimized_dataframe <- data.frame(t = data$t,y = result$par[1]*exp(result$par[2]*data$t)+result$par[3]*exp(result$par[4]*data$t))
+head(optimized_dataframe)
+```
+
+##Sum of Squared Errors for the actual vs y obtained by optimized parameters
+```{r}
+SE <- (optimized_dataframe$y-data$y)^2
+SSE <- sum(SE)
+cat("Sum of Squared Errors for the optimized vs actual is ",SSE)
+```
+
+
+##Graph for actual y vs estimated y vs y obtained by optimized parameters
+```{r}
+ggplot()+
+  geom_point(data = data,aes(t,y, shape = "Actual y"))+
+  geom_point(data = estimated_dataframe, aes(t,y, shape = "Estimated y"))+
+  geom_point(data = optimized_dataframe, aes(t,y, shape="Optimized y"))+
+  scale_shape_manual(values = c("Actual y" = 17, 
+                          "Estimated y" = 20,"Optimized y" = 15))+
+  ggtitle("Original y vs Exponential peeling's y vs Optimized parameters' y")
+```
+
+##Comparing the exponential peeling result vs optimized parameters result
+The optimization function gave us the parameters values as: c1 = 5.132154,
+l1 = -0.1046885, c2 = 4.941015 and l2 = -1.080367. 
+These values are almost similar to the values obtained by exponential 
+peeling, the values are c1 = 5.328934, l1 = -0.1107134, 
+c2 = 4.447866 and l2 = -1.12763
+
+It is also clear from the graph that the y-values(points) obtained by using
+exponential peeling(points in purple) and by using optimized parameters
+(points in cyan) overlap almost perfectly with the original y values(points in
+orange)
+
+
+#Part 2
+
+##Loading dataset into dataframe
+```{r}
+data <- readxl::read_excel("/Users/sainivasrangaraju/Desktop/MM Part2.xlsx")
+head(data)
+
+#Uncomment the below code to view full data
+#data
+```
+
+##Time selected for exponential peeling(t>50)
+```{r}
+time_split <- which(data$time > 50)
+```
+
+##New data frame with t, ln(x1) and ln(x2) values
+```{r}
+log_data <- data.frame(t = data$time, ln_x1 = log(data$x1), ln_x2 = log(data$x2))
+log_data
+```
+
+##Fitting linear model to ln(x1) and t
+```{r}
+lin1_model <- lm(ln_x1~t, log_data, subset = time_split)
+lin1_model
+```
+
+##Fitting linear model to ln(x2) and t
+```{r}
+lin2_model <- lm(ln_x2~t, log_data, subset = time_split)
+lin2_model
+```
+
+##Obtaining lambda1, alpha*v11 and alpha*v21
+```{r}
+lambda1 <- (lin1_model$coefficients[2]+lin2_model$coefficients[2])/2
+lambda1
+```
+
+```{r}
+c1 <- exp(lin1_model$coefficients[1])
+#c1 is alpha*v11
+c1
+```
+
+```{r}
+c2 <- exp(lin2_model$coefficients[1])
+#c2 is alpha*v21
+c2
+```
+
+##Plotting the linear models with log(x1) and log(x2)
+```{r}
+library(ggplot2)
+ggplot(log_data, aes(x = t))+
+  geom_point(aes(y = ln_x1, shape = "x1"))+
+  geom_point(aes(y = ln_x2, shape = "x2"))+
+  geom_abline(intercept = lin1_model$coefficients[1], slope = lambda1)+
+  geom_abline(intercept = lin2_model$coefficients[1], slope = lambda1)+
+  scale_shape_manual(values = c("x1" = 17, "x2" = 20))+
+  labs(title = "x1 and x2 vs t",y="ln(x1) and ln(x2)", x = "t")
+```
+
+##Calculating the residuals of x1 and x2
+```{r}
+new_x1 <- data$x1 - c1*exp(lambda1*data$time)
+new_x2 <- data$x2 - c2*exp(lambda1*data$time)
+```
+
+##Creating dataframe for log of the residuals of x1 and x2
+```{r}
+new_log_data<-data.frame(t = data$time,ln_x1 = log(new_x1),ln_x2 = log(new_x2))
+new_log_data
+```
+
+##Fitting linear model to the ln(x1*)
+```{r}
+lin3_model <- lm(ln_x1~t, new_log_data, subset = -time_split)
+lin3_model
+```
+
+##Obtaining lamda2
+```{r}
+lambda2 <- as.numeric(lin3_model$coefficients[2])
+lambda2
+```
+
+##Obtaining beta*v12
+```{r}
+c3 <- as.numeric(exp(lin3_model$coefficients[1]))
+c3
+```
+
+##Taking beta*v22 = -(beta*v12)(from Initial conditions)
+```{r}
+#Here we can't fit the linear model to the log of x2* as the x2* values are
+#negative and the log will be not defined. To avoid this we skipped fitting
+#linear model to the log(x2*) and calculated the value of beta*v22 from the
+#initial condition i.e; the first entry in the data, which gives us: 
+#beta*v22 = -(beta*v12)
+c4 <- -c3
+c4
+```
+
+##Calculating estimated values
+```{r}
+#time[-1] excludes the first entry i.e; the initial condition
+estimated_x1 <- c1*exp(lambda1*data$time[-1])+c3*exp(lambda2*data$time[-1])
+estimated_x2 <- c2*exp(lambda1*data$time[-1])+c4*exp(lambda2*data$time[-1])
+```
+
+##Creating dataframe with estimated values
+```{r}
+estimated<-data.frame(t=data$time[-1],x1=estimated_x1,x2=estimated_x2)
+```
+
+##Calculating Sum of Squared errors for both x1 and x2
+```{r}
+x1_sse <- sum((data$x1[-1]-estimated$x1)^2)
+x1_sse
+```
+```{r}
+x2_sse <- sum((data$x2[-1]-estimated$x2)^2)
+x2_sse
+```
+
+##Plotting the estimated vs actual values of x1 and x2
+```{r}
+ggplot()+
+geom_point(data,mapping=aes(x =time,y = x1, shape="Actual x1"))+
+geom_point(estimated,mapping=aes(x =t,y = x1, shape="Estimated x1"))+
+geom_point(data,mapping=aes(x =time,y = x2, shape="Actual x2"))+
+geom_point(estimated,mapping=aes(x =t,y = x2, shape="Estimated x2"))+
+geom_line(data,mapping=aes(x =time,y = x1))+
+geom_line(estimated,mapping=aes(x =t,y = x1))+
+geom_line(data,mapping=aes(x =time,y = x2))+
+geom_line(estimated,mapping=aes(x =t,y = x2))+
+scale_shape_manual(values = c("Actual x1" = 15, "Estimated x1" = 17,
+                                "Actual x2" = 19, "Estimated x2" = 12))+
+ggtitle("Estimated concentrations vs Actual concentrations")+
+labs(x = "time", y = "Concentration(x)")
+```
